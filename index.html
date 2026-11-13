@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ENERGO DISPATCHER UA</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#0b1220;--panel:#111c2e;--panel2:#17243a;--line:#263750;--text:#e8f0fb;--muted:#91a4bd;--green:#31d49a;--yellow:#f4c45e;--red:#ff647c;--blue:#69b8ff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#142641 0,#0b1220 42%);color:var(--text);font:14px/1.45 Inter,system-ui,Segoe UI,Arial,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--line);background:#0b1424e8;position:sticky;top:0;z-index:1000;backdrop-filter:blur(10px)}
+.brand{font-weight:900;letter-spacing:.08em;font-size:18px}.brand span{color:var(--green)}.sub{color:var(--muted);font-size:11px;letter-spacing:.12em}
+.status{border:1px solid var(--line);border-radius:99px;padding:6px 11px;color:var(--green);font-weight:800;font-size:11px}
+main{max-width:1600px;margin:auto;padding:16px;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(330px,1fr);gap:14px}
+.panel{background:linear-gradient(160deg,#142239,#101a2b);border:1px solid var(--line);border-radius:15px;padding:14px;box-shadow:0 12px 30px #0002}
+h2{font-size:13px;letter-spacing:.1em;color:#b9c9dd;margin:0 0 12px;text-transform:uppercase}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px}
+.metric{background:#0b1627;border:1px solid var(--line);border-radius:12px;padding:12px}.metric small{color:var(--muted);display:block;font-size:10px;letter-spacing:.1em}.metric strong{display:block;font-size:24px;margin-top:4px}.unit{font-size:11px;color:var(--muted)}
+#map{height:590px;border-radius:12px;background:#dce6ed;z-index:1}
+.mapwrap{position:relative}.mapnote{position:absolute;z-index:500;bottom:10px;left:10px;background:#0b1627e8;padding:8px 10px;border:1px solid var(--line);border-radius:9px;color:#c4d2e3;font-size:11px;max-width:80%}
+.right{display:flex;flex-direction:column;gap:14px}.controls{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+label{color:var(--muted);font-size:11px;display:block;margin-bottom:4px}select,input,button{font:inherit}
+select,input[type=number]{width:100%;background:#0b1627;color:var(--text);border:1px solid var(--line);padding:9px;border-radius:9px}
+button{border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:#1a2c45;color:var(--text);cursor:pointer;font-weight:700}
+button:hover{filter:brightness(1.2)}button.primary{background:#087f65;border-color:#18a982}button.warn{background:#684b17;border-color:#9d752c}button.danger{background:#61283a;border-color:#a94159}
+button:disabled{opacity:.4;cursor:not-allowed}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{flex:1}
+.check{display:flex;gap:8px;align-items:center;color:#c5d2e2;margin-top:8px;font-size:12px}.check input{accent-color:var(--green)}
+.zone-list,.asset-list{display:flex;flex-direction:column;gap:7px;max-height:220px;overflow:auto}
+.zone,.asset,.logitem{background:#0b1627;border:1px solid var(--line);border-radius:10px;padding:9px}
+.zone{display:flex;justify-content:space-between;align-items:center;cursor:pointer}.zone.active{border-color:var(--green);background:#10332f}
+.tag{font-size:10px;padding:3px 7px;border-radius:99px;background:#20334c;color:#b9cce0}.ok{color:var(--green)}.bad{color:var(--red)}.warntext{color:var(--yellow)}
+.bar{height:7px;background:#25354b;border-radius:99px;overflow:hidden;margin-top:7px}.bar i{display:block;height:100%;background:var(--green)}
+.log{max-height:150px;overflow:auto;display:flex;flex-direction:column;gap:6px}.logitem{font-size:11px;color:#bdcce0}
+canvas{width:100%;height:150px;background:#0b1627;border:1px solid var(--line);border-radius:10px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:8px}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#101d30;color:#e8f0fb}.leaflet-popup-content{margin:10px}
+.footer{max-width:1600px;margin:0 auto;padding:0 18px 22px;color:var(--muted);font-size:10px}
+@media(max-width:950px){main{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}#map{height:440px}}
+@media(max-width:520px){header{padding:12px}.brand{font-size:14px}main{padding:9px}.metrics{gap:6px}.metric{padding:9px}.metric strong{font-size:20px}.controls{grid-template-columns:1fr 1fr}#map{height:380px}}
+</style>
+</head>
+<body>
+<header><div><div class="brand">⚡ ENERGO <span>DISPATCHER UA</span></div><div class="sub">GRID CONTROL SIMULATOR · VERSION 0.2</div></div><div class="row" style="flex:0"><span id="clock" class="tag">День 1 · 08:00</span><span id="systemStatus" class="status">● СИСТЕМА НОРМА</span></div></header>
+<main>
+<section>
+ <div class="metrics">
+  <div class="metric"><small>ГЕНЕРАЦІЯ</small><strong id="gen">1 000</strong><span class="unit">МВт</span></div>
+  <div class="metric"><small>СПОЖИВАННЯ</small><strong id="load">820</strong><span class="unit">МВт</span></div>
+  <div class="metric"><small>ЧАСТОТА</small><strong id="freq">50.00</strong><span class="unit">Гц</span></div>
+  <div class="metric"><small>РЕЗЕРВ</small><strong id="reserve">180</strong><span class="unit">МВт</span></div>
+ </div>
+ <div class="panel">
+  <div class="row" style="justify-content:space-between"><h2>Інтерактивна карта України · області / райони</h2><span class="tag" id="mapLevel">Рівень: області</span></div>
+  <div class="mapwrap"><div id="map"></div><div class="mapnote">Клікни на область, щоб перейти до районів. Позначки електростанцій та мережі — умовні ігрові об'єкти, не реальні об'єкти енергетики.</div></div>
+  <div class="legend"><span>🟢 генерація</span><span>🔵 підстанція</span><span>🟠 аварія</span><span>🟣 ремонтна бригада</span><span>— умовна ЛЕП</span></div>
+ </div>
+ <div class="panel" style="margin-top:14px">
+  <div class="row" style="justify-content:space-between"><h2>Динаміка системи</h2><span class="tag">Останні 60 тактів</span></div>
+  <canvas id="chart" width="900" height="170"></canvas>
+  <div class="legend"><span class="ok">━ Генерація</span><span style="color:var(--blue)">━ Споживання</span><span class="warntext">━ Частота × 20</span></div>
+ </div>
+</section>
+<aside class="right">
+ <div class="panel">
+  <h2>Диспетчерський режим</h2>
+  <div class="controls">
+   <div><label>Режим роботи</label><select id="mode"><option value="auto">Автоматичний</option><option value="manual">Ручний</option><option value="hybrid">Змішаний</option></select></div>
+   <div><label>Швидкість часу</label><select id="speed"><option value="1">1×</option><option value="2">2×</option><option value="5">5×</option><option value="10">10×</option></select></div>
+   <div><label>Складність</label><select id="difficulty"><option value="easy">Легка</option><option value="normal" selected>Нормальна</option><option value="hard">Складна</option></select></div>
+   <div><label>Частота мережі (ціль)</label><select id="freqTarget"><option>49.80</option><option>49.90</option><option selected>50.00</option><option>50.10</option><option>50.20</option></select></div>
+  </div>
+  <label class="check"><input type="checkbox" id="autoFaults" checked> Автоматично генерувати аварії</label>
+  <label class="check"><input type="checkbox" id="manualOverride" checked> Дозволити ручні команди в авто-режимі</label>
+  <div class="row" style="margin-top:12px"><button class="primary" id="startBtn">▶ Запустити</button><button id="pauseBtn">Ⅱ Пауза</button><button id="stepBtn">＋ 1 такт</button></div>
+ </div>
+ <div class="panel">
+  <h2>Обраний район</h2>
+  <div id="selectedRegion" style="font-weight:800;font-size:17px">Київська область</div>
+  <div class="sub" id="selectedDistrict">Обери область на карті або в списку</div>
+  <div class="row" style="margin-top:10px"><div><label>Район</label><select id="districtSelect"><option>Усі райони</option></select></div><div><label>Ліміт споживання, МВт</label><input type="number" id="limitInput" min="0" max="1000" value="180"></div></div>
+  <div class="row" style="margin-top:9px"><button class="primary" id="applyLimit">Застосувати ліміт</button><button id="shedBtn">− 25 МВт</button></div>
+  <div class="sub" style="margin-top:8px">Умовне керування навантаженням району в межах ігрової моделі.</div>
+ </div>
+ <div class="panel">
+  <h2>Екстрені потужності</h2>
+  <div class="controls">
+   <div><label>Тип генерації</label><select id="plantType"><option value="ТЕС">ТЕС</option><option value="ГЕС">ГЕС</option><option value="СЕС">Сонячна</option><option value="ВЕС">Вітрова</option><option value="АЕС">АЕС (умовний блок)</option></select></div>
+   <div><label>Потужність блоку, МВт</label><select id="plantPower"><option>50</option><option selected>100</option><option>150</option><option>200</option></select></div>
+  </div>
+  <div class="row" style="margin-top:9px"><button class="primary" id="startPlant">⚡ Підключити блок</button><button id="stopPlant">Вивести блок</button></div>
+  <div id="plantList" class="asset-list" style="margin-top:10px"></div>
+ </div>
+ <div class="panel">
+  <h2>Мережа та ремонт</h2>
+  <div class="row"><div><label>Рівень підстанції</label><select id="subVoltage"><option>750 кВ</option><option selected>330 кВ</option><option>110 кВ</option></select></div><button id="createSub" style="align-self:end">＋ Додати вузол</button></div>
+  <div class="row" style="margin-top:8px"><button class="warn" id="damageBtn">⚠ Створити аварію</button><button id="crewBtn">🛠 Відправити бригаду</button></div>
+  <div id="incidentList" class="asset-list" style="margin-top:10px"></div>
+ </div>
+ <div class="panel">
+  <h2>Журнал подій</h2><div id="log" class="log"><div class="logitem">Симулятор готовий. Натисни «Запустити».</div></div>
+  <div class="row" style="margin-top:10px"><button id="saveBtn">💾 Зберегти</button><button id="loadBtn">↩ Завантажити</button><button class="danger" id="resetBtn">Скинути</button></div>
+  <div class="sub" id="saveInfo" style="margin-top:7px">Автозбереження увімкнено · зберігання в цьому браузері</div>
+ </div>
+</aside>
+</main>
+<div class="footer">Навчально-ігрова модель. Не є цифровим двійником реальної енергосистеми; не використовує реальні оперативні дані, схеми, координати електрооб'єктів або команди керування. Адміністративні межі завантажуються з відкритого набору даних; карта © OpenStreetMap.</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const regions=["Вінницька","Волинська","Дніпропетровська","Донецька","Житомирська","Закарпатська","Запорізька","Івано-Франківська","Київська","Кіровоградська","Луганська","Львівська","Миколаївська","Одеська","Полтавська","Рівненська","Сумська","Тернопільська","Харківська","Херсонська","Хмельницька","Черкаська","Чернівецька","Чернігівська","АР Крим","Київ"];
+const slugMap={"Вінницька":"vinnytska_oblast","Волинська":"volynska_oblast","Дніпропетровська":"dnipropetrovska_oblast","Донецька":"donetska_oblast","Житомирська":"zhytomyrska_oblast","Закарпатська":"zakarpatska_oblast","Запорізька":"zaporizka_oblast","Івано-Франківська":"ivano-frankivska_oblast","Київська":"kyivska_oblast","Кіровоградська":"kirovohradska_oblast","Луганська":"luhanska_oblast","Львівська":"lvivska_oblast","Миколаївська":"mykolaivska_oblast","Одеська":"odeska_oblast","Полтавська":"poltavska_oblast","Рівненська":"rivnenska_oblast","Сумська":"sumska_oblast","Тернопільська":"ternopilska_oblast","Харківська":"kharkivska_oblast","Херсонська":"khersonska_oblast","Хмельницька":"khmelnytska_oblast","Черкаська":"cherkaska_oblast","Чернівецька":"chernivetska_oblast","Чернігівська":"chernihivska_oblast"};
+let state={minute:480,day:1,running:false,gen:1000,load:820,freq:50,selected:"Київська",district:"Усі райони",plants:[],incidents:[],crews:[],history:[],logs:[],tick:0,substations:[]};
+let timer=null,oblastLayer=null,districtLayer=null,markers=[],lineLayer=null;
+const map=L.map('map',{zoomControl:true}).setView([48.8,31.2],6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
+const geoBase='https://cdn.jsdelivr.net/gh/darmat1/ukraine-geo-data@main/geodata/';
+function log(msg,kind='info'){const t=`${String(Math.floor(state.minute/60)).padStart(2,'0')}:${String(state.minute%60).padStart(2,'0')}`;state.logs.unshift(`[${t}] ${msg}`);state.logs=state.logs.slice(0,35);$('log').innerHTML=state.logs.map(x=>`<div class="logitem">${x}</div>`).join('');}
+function update(){
+ $('gen').textContent=Math.round(state.gen).toLocaleString('uk-UA');$('load').textContent=Math.round(state.load).toLocaleString('uk-UA');$('freq').textContent=state.freq.toFixed(2);$('reserve').textContent=Math.round(state.gen-state.load).toLocaleString('uk-UA');
+ $('clock').textContent=`День ${state.day} · ${String(Math.floor(state.minute/60)%24).padStart(2,'0')}:${String(state.minute%60).padStart(2,'0')}`;
+ const ok=state.gen>=state.load && state.freq>=49.8 && state.freq<=50.2;$('systemStatus').textContent=ok?'● СИСТЕМА НОРМА':'● УВАГА: НЕБАЛАНС';$('systemStatus').style.color=ok?'var(--green)':'var(--red)';
+ $('plantList').innerHTML=state.plants.map((p,i)=>`<div class="asset"><b>${p.type}</b> · ${p.mw} МВт <span class="tag">${p.region}</span></div>`).join('')||'<div class="sub">Резервні блоки не підключені</div>';
+ $('incidentList').innerHTML=state.incidents.map((a,i)=>`<div class="asset"><b class="${a.done?'ok':'bad'}">${a.done?'ВІДРЕМОНТОВАНО':'АВАРІЯ'}</b> · ${a.type}<br><span class="sub">${a.region} · залишилось ${Math.max(0,a.remaining)} хв ${a.crew?'· бригада працює':''}</span></div>`).join('')||'<div class="sub">Активних аварій немає</div>';
+ drawChart();saveLocal(false);
+}
+function drawChart(){const c=$('chart'),ctx=c.getContext('2d'),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);ctx.strokeStyle='#263750';ctx.lineWidth=1;for(let i=1;i<5;i++){ctx.beginPath();ctx.moveTo(0,h*i/5);ctx.lineTo(w,h*i/5);ctx.stroke()}const plot=(key,color,scale=1,offset=0)=>{if(state.history.length<2)return;ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=2;state.history.forEach((v,i)=>{let x=i/(state.history.length-1)*w,y=h-(v[key]*scale+offset)/1200*h;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.stroke()};plot('gen','#31d49a');plot('load','#69b8ff');plot('freq','#f4c45e',20,-800)}
+function tick(){
+ const speed=Number($('speed').value);for(let n=0;n<speed;n++){
+  state.minute++;state.tick++;if(state.minute>=1440){state.minute=0;state.day++}
+  state.incidents.forEach(a=>{if(!a.done&&a.crew){a.remaining--;if(a.remaining<=0){a.done=true;state.gen+=a.lost;log(`Ремонт завершено: ${a.type} у районі ${a.region}. Потужність відновлено.`)}}});
+  state.crews=state.crews.filter(c=>!c.done);
+  const diff=$('difficulty').value,prob=diff==='easy'?.0015:diff==='hard'?.009:.004;
+  if($('autoFaults').checked&&Math.random()<prob){const types=['відмова умовного блоку генерації','пошкодження умовної лінії','відключення умовної підстанції'];const lost=diff==='hard'?120:diff==='easy'?45:80;const a={type:types[Math.floor(Math.random()*types.length)],region:state.selected,lost,remaining:diff==='hard'?50:30,crew:false,done:false};state.incidents.push(a);state.gen=Math.max(300,state.gen-lost);log(`АВАРІЯ: ${a.type}, ${a.region}. Втрачено ${lost} МВт.`,'bad');if($('mode').value==='auto')autoRespond()}
+  state.freq=Math.max(49.5,Math.min(50.5,50+(state.gen-state.load)/1800)); 
+  if($('mode').value!=='manual' && state.gen<state.load-20)autoRespond();
+ }
+ state.history.push({gen:state.gen,load:state.load,freq:state.freq});state.history=state.history.slice(-60);update();
+}
+function autoRespond(){if(state.gen<state.load){let need=state.load-state.gen;let block=Math.max(50,Math.ceil(need/50)*50);state.plants.push({type:'АВТОРЕЗЕРВ',mw:block,region:state.selected});state.gen+=block;log(`АВТОМАТИКА: підключено резерв ${block} МВт.`)}}
+function setRunning(v){state.running=v;if(timer)clearInterval(timer);timer=null;if(v)timer=setInterval(tick,1000);$('startBtn').textContent=v?'▶ Працює':'▶ Запустити';}
+$('startBtn').onclick=()=>setRunning(true);$('pauseBtn').onclick=()=>setRunning(false);$('stepBtn').onclick=()=>{setRunning(false);tick()};
+$('startPlant').onclick=()=>{if($('mode').value==='auto'&&!$('manualOverride').checked){log('Ручне втручання вимкнене в автоматичному режимі.');return}let mw=Number($('plantPower').value),type=$('plantType').value;state.plants.push({type,mw,region:state.selected});state.gen+=mw;log(`Диспетчер підключив ${type}, +${mw} МВт у ${state.selected}.`);update()};
+$('stopPlant').onclick=()=>{if(!$('manualOverride').checked&&$('mode').value==='auto'){log('Ручне втручання заборонене.');return}let p=state.plants.pop();if(p){state.gen=Math.max(0,state.gen-p.mw);log(`Блок ${p.type} −${p.mw} МВт виведено.`)}update()};
+$('damageBtn').onclick=()=>{let a={type:'позапланова відмова обладнання',region:state.selected,lost:75,remaining:40,crew:false,done:false};state.incidents.push(a);state.gen=Math.max(300,state.gen-a.lost);log(`Диспетчер зареєстрував аварію в районі ${state.selected}. Втрачено 75 МВт.`);update()};
+$('crewBtn').onclick=()=>{let a=state.incidents.find(x=>!x.done&&!x.crew);if(!a){log('Немає аварій, що очікують ремонтну бригаду.');return}a.crew=true;log(`Ремонтну бригаду відправлено до району ${a.region}. Орієнтовний час ремонту: ${a.remaining} хв.`);update()};
+$('createSub').onclick=()=>{let v=$('subVoltage').value;state.substations.push({v,region:state.selected});log(`Додано умовний вузол ${v} у районі ${state.selected}.`);update()};
+$('applyLimit').onclick=()=>{let v=Math.max(0,Number($('limitInput').value)||0);state.load=Math.max(0,state.load-v);log(`Застосовано додаткове обмеження навантаження в районі ${state.selected}: −${v} МВт.`);update()};
+$('shedBtn').onclick=()=>{state.load=Math.max(0,state.load-25);log(`Диспетчер зменшив навантаження на 25 МВт у ${state.selected}.`);update()};
+$('freqTarget').onchange=()=>{let target=Number($('freqTarget').value);state.freq=target;log(`Змінено цільове значення частоти: ${target.toFixed(2)} Гц. Фактична частота далі визначається балансом моделі.`);update()};
+function saveLocal(show=true){try{localStorage.setItem('energo-dispatcher-save',JSON.stringify(state));if(show)$('saveInfo').textContent='Збережено '+new Date().toLocaleTimeString('uk-UA')}catch(e){}}
+$('saveBtn').onclick=()=>{saveLocal();log('Гру збережено в цьому браузері.')};
+$('loadBtn').onclick=()=>{try{let s=JSON.parse(localStorage.getItem('energo-dispatcher-save'));if(!s)throw 0;setRunning(false);state={...state,...s};log('Збереження завантажено.');update()}catch(e){log('Збереження не знайдено.')}};
+$('resetBtn').onclick=()=>{setRunning(false);localStorage.removeItem('energo-dispatcher-save');state={minute:480,day:1,running:false,gen:1000,load:820,freq:50,selected:'Київська',district:'Усі райони',plants:[],incidents:[],crews:[],history:[],logs:[],tick:0,substations:[]};log('Нову зміну розпочато.');update()};
+async function loadOblasts(){try{let r=await fetch(geoBase+'Ukraine.geojson');if(!r.ok)throw Error('geo');let data=await r.json();oblastLayer=L.geoJSON(data,{style:()=>({color:'#54708a',weight:1.2,fillColor:'#4f9b87',fillOpacity:.18}),onEachFeature:(f,l)=>{let name=f.properties.name||f.properties.NAME_1||f.properties.NAME||'Область';l.bindTooltip(name);l.on('click',()=>selectOblast(name,l,f.properties));}}).addTo(map);map.fitBounds(oblastLayer.getBounds(),{padding:[10,10]});}catch(e){$('mapLevel').textContent='Не вдалося завантажити межі';log('Не вдалося завантажити GeoJSON. Перевір інтернет-зʼєднання.');}}
+async function selectOblast(name,layer,props){let clean=name.replace(' область','').replace(' Oblast','');state.selected=clean;$('selectedRegion').textContent=name;$('mapLevel').textContent='Рівень: райони';$('districtSelect').innerHTML='<option>Усі райони</option>';if(districtLayer)map.removeLayer(districtLayer);let slug=props.slug||props.slug_en||slugMap[clean];if(!slug){log('Для цієї області не знайдено код завантаження районів.');return}try{let r=await fetch(geoBase+slug+'.geojson');if(!r.ok)throw Error();let d=await r.json();districtLayer=L.geoJSON(d,{style:()=>({color:'#3d6880',weight:1,fillColor:'#66a9bd',fillOpacity:.12}),onEachFeature:(f,l)=>{let nm=f.properties.name||f.properties.NAME_2||'Район';l.bindTooltip(nm);l.on('click',()=>{$('selectedDistrict').textContent=nm;$('districtSelect').value=nm;state.district=nm;log(`Обрано район: ${nm}, ${name}.`);});}}).addTo(map);$('districtSelect').innerHTML='<option>Усі райони</option>'+d.features.map(f=>`<option>${f.properties.name||f.properties.NAME_2||'Район'}</option>`).join('');map.fitBounds(layer.getBounds());log(`Завантажено райони: ${name}.`)}catch(e){$('selectedDistrict').textContent='Районний шар не завантажився — обери іншу область або перевір джерело даних.';log(`Не вдалося завантажити районні межі для ${name}.`)}update();}
+$('districtSelect').onchange=()=>{state.district=$('districtSelect').value;$('selectedDistrict').textContent=state.district};
+function addGameMarkers(){const places=[['АЕС','50.3,30.5'],['ТЕС','49.8,36.2'],['ГЕС','48.5,34.9'],['СЕС','49.0,28.0'],['ВЕС','46.8,31.0']];const coords=[[50.3,30.5],[49.8,36.2],[48.5,34.9],[49.0,28.0],[46.8,31.0]];coords.forEach((p,i)=>L.circleMarker(p,{radius:7,color:'#0b1220',weight:1,fillColor:['#31d49a','#f4c45e','#69b8ff','#f2cf66','#bd91ff'][i],fillOpacity:1}).addTo(map).bindTooltip(['Умовний блок АЕС','Умовний блок ТЕС','Умовний блок ГЕС','Умовний блок СЕС','Умовний блок ВЕС'][i]));}
+loadOblasts().then(addGameMarkers);update();
+</script>
+</body></html>
